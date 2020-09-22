@@ -1,0 +1,687 @@
+---
+title: "Heart Attack Prediction Capstone Project"
+author: "John Sowers"
+date: "9/22/2020"
+output:
+  pdf_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+```{r Load Install Packages, include=FALSE}
+if(!require(githubinstall)) install.packages("githubinstall", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(RCurl)) install.packages("RCurl", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(httr)) install.packages("httr", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(foreach)) install.packages("foreach", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(gam)) install.packages("gam", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(splines2)) install.packages("splines2", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(stringi)) install.packages("stringi", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(rmarkdown)) install.packages("rmarkdown", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(knitr)) install.packages("knitr", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(devtools)) install.packages("devtools", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(tinytex)) install.packages("latexpdf", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(tinytex)) install.packages("tinytex", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(packrat)) install.packages("packrat", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(rsconnect)) install.packages("rsconnect", repos = "http://cran.us.r-project.org", quiet=TRUE)
+if(!require(readxl)) install.packages("readxl", repos = "http://cran.us.r-project.org", quiet=TRUE)
+```
+```{r Load Libraries, include=FALSE}
+library(githubinstall)
+library(RCurl)
+library(httr)
+library(tidyverse)
+library(lubridate)
+library(caret)
+library(gam)
+library(foreach)
+library(splines2)
+library(stringi)
+library(data.table)
+library(gridExtra)
+library(ggplot2)
+library(rmarkdown)
+library(knitr)
+library(devtools)
+library(latexpdf)
+library(tinytex)
+library(packrat)
+library(rsconnect)
+library(readxl)
+```
+```{r Clear Variables and Set Options, include=FALSE}
+rm(list=ls())  # Clears all variables
+options(digits=3) 
+```
+```{r Download Data Set from GitHub, include=FALSE}
+KaggleURL <- "https://www.kaggle.com/nareshbhat/health-care-data-set-on-heart-attack-possibility"
+GitHubURL <- "https://github.com/johndsowers/HeartAttack/raw/master/heart.csv"
+dl <- tempfile()
+download.file(GitHubURL, dl)
+heart <- as.data.frame(read_csv(dl))
+heart <- heart %>% mutate(target=as.numeric(target))
+```
+```{r Split Data Set into Testing and Training, include=FALSE}
+set.seed(1) # Set Seed to 1
+test_index <- createDataPartition(y = heart$target, times = 1, p = 0.1, list = FALSE)
+training <- heart[-test_index,]  # Create Training Data Set
+testing <- heart[test_index,] # Create Test Data Set
+```
+**INTRODUCTION**\  
+` `  
+` `  
+This project report is submitted to fulfill part of the requirement for the Edx Data Science: Capstone Course. 
+The program code for this project was compiled utilizing R version 4.02 / R Studio version 1.3.1073.  It was run on a Dell m15 R3 laptop computer with an i7 Central Processing Unit (CPU) with 16 Gigabytes of Random Access Memory (RAM) utilizing Microsoft Windows 10.\      
+` `  
+According to the Center for Disease Control (CDC) website of <https://www.cdc.gov/nchs/fastats/leading-causes-of-death.htm>, the leading cause of death in the United States is Heart Disease, claiming over 500,000 lives each year.  Early detection of this disease in critical in lowering these numbers; and according to an article listed in the Artificial Intelligence News at the website of  <https://artificialintelligence-news.com/2019/05/14/ml-algorithm-predicts-heart-attacks>, machine learning could be utilized to predict heart attacks with a 90% accuracy.\    
+` `  
+The purpose of this project is to validate this claim, utilizing a public domain data set that was previously cleansed of all personal private information.  This data set can be found on Kaggle at the following website <https://www.kaggle.com/nareshbhat/health-care-data-set-on-heart-attack-possibility>; and it was unzipped, cleansed, and downloaded to the GitHub Project website of <https://github.com/johndsowers/HeartAttack/raw/master/heart.csv> for ease of downloading.\  
+` `  
+` `  
+The data structure contains 303 unknown patient medical conditions with 13 medical tests and the heart disease condition determination.  This downloaded data set was further split into separate training and testing data sets with the training data containing 90% of the cases and the testing data containing 10%. The structure of the combined data set is shown below:\  
+` `  
+` `  
+```{r Data Structure, echo=FALSE}
+capture.output(str(heart)) %>% head(15)
+```
+` `  
+**METHODOLOGY**\ 
+` ` 
+` `  
+` `  
+The data set was created from the records of patients' who had been tested for the presence of heart disease.  These patients may have previous indications of a heart condition that initiated the scheduling of the appointments; and this may skew some resulting distributions.  However, the predictors contained in the data and the resulting heart disease condition remain valid.  Medical nomenclature and abbreviations were utilized for the predictors and heart disease determination in the data set and are used throughout this report.  These factors include:` `\      
+` `  
+1.  Age\    
+2.  Gender (sex)\   
+3.  Chest Pain Type (cp)\   
+4.  Resting Blood Pressure (trestbps)\     
+5.  Cholesterol (chol)\    
+6.  Fasting Blood Sugar (fbs)\   
+7.  Resting Electrocardiographic Results (restecg)\   
+8.  Maximum Heart Rate Achieved (thalach)\    
+9.  Exercise Induced Angina (exang)\               
+10. ST Depression Induced by Exercise Relative to Rest (oldpeak)\    
+11. Slope of the Peak Exercise ST Segment\              
+12. Number of Major Vessels (ca)\                   
+13. Thalassemia Blood Disorder (thal)\      
+14. Presence of Heart Disease (target)\              
+` `  
+` ` 
+*Age Factor* \  
+` `  
+` `  
+The first factor to consider is that of age.  The age of the patients who were tested for heart disease ranged from 29 years through 77 years with the mean age of patients of 54.4 years.  The age groups that contained the minimum number of patients were those that were at the extreme left and right of this range at 29 years as well as 74 and 77 years of 1 patient.  The age group that contained the maximum number of patients was 58 years with 19 patients.  The proportion of patients follow these numbers, as are shown in the first figure below.\ 
+` `  
+` `  
+The proportion of patients by age who were tested and then diagnosed with heart disease differ from the proportions of patients.  The minimum is 0% for the one patient of 77 years with the maximum of 100% for patients who are 29, 34, 37, 71, 74, and 76 years with an overall mean heart disease rate of 60%.  The data indicates that the proportion of patients who tested positive for an age group decreased with increasing number of patients as can be seen around the age group of 60 years.  The proportion of patients diagnosed with heart disease is shown in the second figure below.\  
+` `   
+```{r Analysis by Age, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+age_p_distribution.fig <- heart %>% 
+   group_by(age) %>% 
+   summarize(p = length(target)/nrow(heart), .groups="drop") %>%
+   ggplot(aes(age, p)) +
+      geom_bar(stat="identity") +
+      ggtitle("Patient Proportions by Age") +
+      xlab("Age (Years)") +
+      ylab("Proportion of Patients") 
+
+age_p_disease.fig <- heart %>% 
+   group_by(age) %>% 
+   mutate(n_total = length(age)) %>%
+   summarize(prop_disease = sum(target==1)/n_total, prop_health= sum(target==0)/n_total, .groups="drop") %>% 
+   ggplot(aes(age, prop_disease)) +
+      geom_point() +
+      geom_smooth(method = "loess", formula='y ~ x') + 
+      geom_hline(yintercept=0.600, size=1.0, color="red") +
+      annotate("text", x = 34, y = .630, label = "Mean=.600") +
+      ylim(0, 1) +
+      ggtitle("Case Proportions by Age") +
+      xlab("Age (Years)") +
+      ylab("Proportion of Cases") 
+
+grid.arrange(age_p_distribution.fig, age_p_disease.fig, ncol=2) # Plot proportion distributions
+``` 
+*Gender Factor*\  
+` `   
+` `   
+The next factor to consider is that of gender.  From the data set, patients were listed as a "0" for female or "1" for male.  Of the patients tested, males made up the majority with 68.3% male versus 31.7% female.  The proportion of patients who were tested for heart disease is shown in the first figure below.\    
+` `  
+The proportion of patients by gender who were tested and then diagnosed with heart disease differ from the proportions of the number of patients.  Of the patients tested for heart disease, 44.9% of males tested positive for the disease while 75.1% of females tested positive.  The proportion of patients diagnosed with heart disease is shown in the second figure below.\  
+` `   
+```{r Analysis by Gender, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+
+sex_p_distribution.fig <- heart %>% 
+   group_by(sex) %>% 
+   summarise(p = length(target)/nrow(heart), .groups="drop") %>%
+   mutate(sex = ifelse(sex==0,"Female", "Male")) %>%
+      ggplot(aes(sex, p)) +
+      geom_bar(stat="identity") +
+      ggtitle("Patient Proportions by Gender") +
+      xlab("Gender") +
+      ylab("Proportion of Patients") 
+
+sex_p_disease.fig <- heart %>%
+   group_by(sex) %>% 
+   summarise(p = sum(as.numeric(target)/length(target)), .groups="drop") %>% 
+   mutate(sex = ifelse(sex==0,"Female", "Male")) %>%
+   ggplot(aes(sex,p)) +
+      geom_bar(stat="identity") +
+      geom_hline(yintercept=.6, size=1.0, color="red") +
+      annotate("text", x = 2.3, y = .625, label = "Mean = 0.6") +
+      ggtitle("Case Proportions by Gender") +
+      xlab("Gender") +
+      ylab("Proportion of Cases")
+
+grid.arrange(sex_p_distribution.fig, sex_p_disease.fig, ncol=2) # Plot proportion distributions
+``` 
+*Chest Pain Factor*\  
+` `  
+` `   
+The next factor to consider is that of chest pain.  From the data set, patients were listed with chest pain types of "0" through "3".   Of the four types of chest pain, 47.2% of the patients reported a pain type of "0", 16.5% reported a pain type of "1", 28.7% reported a pain type of "2", and 7.59% reported a pain type of "3".  The proportion of patients who were tested for heart disease is shown in the first figure below.\        
+` `  
+The proportion of patients by pain types indicate those with with pain types of higher numbers having higher risks of heart disease. Of those testing positive for the disease, 27.3% reported pain type of "0", 82.0% reported a pain type of "1", 79.3% reported a pain type of "2", and 69.6% reported a pain type of "3".  The proportion of patients diagnosed with heart disease is shown in the second figure below.\    
+` `  
+```{r Analysis by Chest Pain, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+
+cp_p_distribution.fig <- heart %>% 
+   group_by(cp) %>%
+   summarise(p=length(cp)/nrow(heart), .groups="drop") %>%
+   ggplot(aes(cp, p)) +
+      geom_bar(stat="identity") +
+      ggtitle("Patient Proportions by CP") +
+      xlab("Chest Pain (CP) Score") +
+      ylab("Proportion of Patients") 
+
+cp_p_disease.fig <- heart %>%
+   group_by(cp) %>% 
+   summarise(p = sum(as.numeric(target))/length(target), .groups="drop") %>% 
+   ggplot(aes(cp,p)) +
+   geom_bar(stat="identity") +
+   geom_hline(yintercept=.645, size=1.0, color="red") +
+   annotate("text", x = 0, y = .625, label = "Mean = 0.645") +
+   ggtitle("Case Proportions by CP") +
+   xlab("Chest Pain (CP) Score") +
+   ylab("Proportion of Cases")
+
+grid.arrange(cp_p_distribution.fig, cp_p_disease.fig, ncol=2) # Plot proportion distributions
+``` 
+*Blood Pressure Factor*\  
+` `  
+` `  
+The next factor to consider is that of resting blood pressure levels, as measured in mm Hg.  From the data set, patients' blood pressure results ranged from a minimum of 94 to a maximum of 200.  From this range the minimum proportion of patients showed that .330% of the patients had a blood pressure of 101 with the maximum proportion of patients showed that 12.2% had a blood pressure of 120, which is considered in the normal range of blood pressure.  The proportion of patients who were tested for heart disease is shown in the first figure below.\     
+` `  
+Of the patients who tested positive for heart disease, the presence of the disease varied among patients with positive cases having both low and high blood pressures but generally trending downward with increasing blood pressure levels.  The proportion of patients diagnosed with heart disease is shown in the second figure below.\    
+` `  
+```{r Analysis by Blood Pressure, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+
+trestbps_p_distribution.fig <- heart %>% 
+   group_by(trestbps) %>%
+   summarise(p=length(cp)/nrow(heart), .groups="drop") %>%
+   ggplot(aes(trestbps, p)) +
+   geom_bar(stat="identity") +
+   ggtitle("Patient Proportions by BP") +
+   xlab("Blood Perssure (BP) Level") +
+   ylab("Proportion of Patients") 
+
+trestbps_p_disease.fig <- heart %>%
+   group_by(trestbps) %>% 
+   summarise(p = sum(as.numeric(target))/length(target), .groups="drop") %>% 
+   ggplot(aes(trestbps,p)) +
+   geom_smooth(method='loess', formula='y ~ x') +
+   geom_point() +
+   #geom_bar(stat="identity") +
+   geom_hline(yintercept=.51, size=1.0, color="red") +
+   annotate("text", x = 190, y = .58, label = "Mean = 0.510") +
+   ggtitle("Case Proportions by BP") +
+   xlab("Blood Pressure (BP) Level") +
+   ylab("Proportion of Cases")
+
+grid.arrange(trestbps_p_distribution.fig, trestbps_p_disease.fig, ncol=2) # Plot proportion distributions
+``` 
+*Cholesterol Factor*\  
+` `  
+` `  
+The next factor to consider is that of resting cholesterol levels, as measured in mg / dl.  From the data set, patients' cholesterol results ranged from a minimum of 126 to a maximum of 564.  From this range .330% of the patients had a cholesterol levels of 126 with 1.98% of patients having a cholesterol level of 198.  The proportion of patients who were tested for heart disease is shown in the first figure below.\     
+` `  
+Of the patients who tested positive for heart disease, the presence of the disease varied among patients with positive cases having both low and high cholesterol levels but generally trending upward with increasing cholesterol levels. The proportion of patients diagnosed with heart disease is shown in the second figure below.\   
+```{r Analysis by Cholesteral, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+chol_p_distribution.fig <- heart %>% 
+   group_by(chol) %>%
+   summarise(p=length(cp)/nrow(heart), .groups="drop") %>%
+   ggplot(aes(chol, p)) +
+   geom_bar(stat="identity") +
+   ggtitle("Patient Proportions by Chol") +
+   xlab("Cholesteral (Chol) Level") +
+   ylab("Proportion of Patients") 
+
+chol_p_disease.fig <- heart %>%
+   group_by(chol) %>% 
+   summarise(p = sum(as.numeric(target))/length(target), .groups="drop") %>% 
+   ggplot(aes(chol,p)) +
+   geom_smooth(method='loess', formula='y ~ x') +
+   geom_point() +
+   geom_hline(yintercept=.521, size=1.0, color="red") +
+   annotate("text", x = 510, y = .580, label = "Mean = .521") +
+   ggtitle("Case Proportions by Chol") +
+   xlab("Cholesterol (Chol) Level") +
+   ylab("Proportion of Cases")
+
+grid.arrange(chol_p_distribution.fig, chol_p_disease.fig, ncol=2) # Plot proportion distributions
+``` 
+*Blood Sugar Factor*\  
+` `  
+` `  
+The next factor to consider is that of fasting blood sugar levels, as measured in mg / dl.  The data indicates returns this value as either a "0" or "1" with "0" indicating blood sugar below or equal to 120 mg/dl while a "1" indicating blood sugar above 120 mg/dl.  From the data set, 67.3% of the patients tested had blood sugar levels less than or equal to 120 mg/dl while 32.7% of the patients had blood sugar levels exceeding 120 mg/dl.  The proportion of patients who were tested for heart disease is shown in the first figure below.\     
+` `  
+Of the patients who tested positive for heart disease, heart disease was present in patients with lower fasting blood sugar than those with higher blood sugar levels with 69.6% of the patients with heart disease having lower blood sugar levels and 23.2% of the patients having higher blood sugar levels.  The proportion of patients diagnosed with heart disease is shown in the second figure below.\   
+` `  
+```{r Analysis by Blood Sugar, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+fbs_p_distribution.fig <- heart %>% 
+   group_by(fbs) %>%
+   mutate(fbs=ifelse(exang==0,"False","True")) %>%  
+   summarise(p=length(cp)/nrow(heart), .groups="drop") %>%
+   ggplot(aes(fbs, p)) +
+   geom_bar(stat="identity") +
+   ggtitle("Patient Proportions by FBS") +
+   xlab("Fasting Blood Sugar (FBS) (>120 mg/dl)") +
+   ylab("Proportion of Patients") 
+
+fbs_p_disease.fig <- heart %>%
+   mutate(fbs=ifelse(exang==0,"False","True")) %>%
+   group_by(fbs) %>% 
+   summarise(p = sum(as.numeric(target))/length(target), .groups="drop") %>% 
+   ggplot(aes(fbs,p)) +
+   geom_bar(stat="identity") +
+   geom_hline(yintercept=.464, size=1.0, color="red") +
+   annotate("text", x = 2.25, y = .4854,  label = "Mean = .464") +
+   ggtitle("Case Proportions by FBS") +
+   xlab("Fasting Blood Sugar (FBS) (>120 mg/dl)") +
+   ylab("Proportion of Cases")
+
+grid.arrange(fbs_p_distribution.fig, fbs_p_disease.fig, ncol=2) # Plot proportion distributions
+``` 
+` `  
+*Electrocardiographic (ECG) Factor*\  
+` `  
+` `  
+The next factor to consider is that of resting electrocardiographic (ECG) results.  These results are categorized by values of "0", "1", and "2."  Of the patients who were tested, 48.5% returned ECG results of "0", 50.2% returned results of "1", and 1.32% returned results of "2."  The proportion of patients who were tested for heart disease is shown in the first figure below.\   
+` `  
+Of the patients who tested positive for heart disease, an ECG result of "0" indicated the presence of heart disease 46.3% of the time, a result of "1" indicated the presence of the disease 63.2% of the time, and a result of a "2" indicated the presence of the disease 25% of the time.  The proportion of patients diagnosed with heart disease is shown in the second figure below.\   
+```{r Analysis by EKG, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+ekg_p_distribution.fig <- heart %>% 
+   group_by(restecg) %>%
+   summarise(p=length(cp)/nrow(heart), .groups="drop") %>%
+   ggplot(aes(restecg, p)) +
+   geom_bar(stat="identity") +
+   ggtitle("Patient Proportions by ECG") +
+   xlab("Electrocardiogram (ECG) Score") +
+   ylab("Proportion of Patients") 
+
+ekg_p_disease.fig <- heart %>%
+   group_by(restecg) %>% 
+   summarise(p = sum(as.numeric(target)/length(target)), .groups="drop") %>% 
+   ggplot(aes(restecg,p)) +
+   geom_bar(stat="identity") +
+   #geom_smooth(method='loess', formula='y ~ x') +
+   geom_hline(yintercept=.448, size=1.0, color="red") +
+   annotate("text", x = 2.05, y = .468, label = "Mean = 0.448") +
+   ggtitle("Case Proportions by ECG") +
+   xlab("Electrocardiogram (ECG) Score") +
+   ylab("Proportion of Cases")
+
+grid.arrange(ekg_p_distribution.fig, ekg_p_disease.fig, ncol=2) # Plot proportion distributions
+```
+*Maximum Heart Rate Factor*\  
+` `  
+` `  
+The next factor to consider is that of maximum achieved heart rate.  From the data set, patients' heart rate results ranged from a minimum of 71 to a maximum of 202.  From this range the minimum proportion of patients showed that .330% of the patients had a heart rate level of 71 with the 3.63% of the patients having a maximum heart rate level of 162 with the overall mean of 145 beats per minute. The proportion of patients who were tested for heart disease is shown in the first figure below.\     
+` `  
+Of the patients who tested positive for heart disease, the presence of heart disease results varied but generally increased with patients with higher maximum heart rates.\    
+```{r Analysis by Heart Rate, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+hr_p_distribution.fig <- heart %>% 
+   group_by(thalach) %>%
+   summarise(p=length(cp)/nrow(heart), .groups="drop") %>%
+   ggplot(aes(thalach, p)) +
+   geom_bar(stat="identity") +
+   ggtitle("Patient Proportions by HR") +
+   xlab("Maximum Heart Rate (HR)") +
+   ylab("Proportion of Patients") 
+
+hr_p_disease.fig <- heart %>%
+   group_by(thalach) %>% 
+   summarise(p = sum(as.numeric(target))/length(target), .groups="drop") %>% 
+   ggplot(aes(thalach,p)) +
+   geom_smooth(method='loess', formula='y ~ x') +
+   geom_point() +
+   geom_hline(yintercept=.491, size=1.0, color="red") +
+   annotate("text", x = 88, y = .547, label = "Mean = 0.491") +
+   ggtitle("Case Proportions by HR") +
+   xlab("Maximum Heart Rate (HR)") +
+   ylab("Proportion of Cases")
+
+grid.arrange(hr_p_distribution.fig, hr_p_disease.fig, ncol=2) # Plot proportion distributions
+```
+*Angina Factor*\  
+` `  
+` `  
+The next factor to consider is that of exercised induced angina.  The data returns this value as either a "0" or "1" with "0" showing the absence of angina indications and "1" showing the presence of angina indications.  From the data set, 67.3% of the patients tested did not have indications of exercise induced angina with 32.7% of the patients having indications.  The proportion of patients who were tested for heart disease is shown in the first figure below.\     
+` `  
+Likewise, of the patients who tested positive for heart disease, 69.6% of the time patients without angina tested positive for the disease while 23.2% of the time patients with angina tested positive for the disease. The proportion of patients diagnosed with heart disease is shown in the second figure below.\   
+` `  
+```{r Analysis by Angina, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+ang_p_distribution.fig <- heart %>% 
+   mutate(exang=ifelse(exang==0,"Not Present","Present")) %>%
+   group_by(exang) %>%
+   summarise(p=length(cp)/nrow(heart), .groups="drop") %>%
+   ggplot(aes(exang, p)) +
+   geom_bar(stat="identity") +
+   ggtitle("Patient Proportions by Angina") +
+   xlab("Exercise Induced Angina") +
+   ylab("Proportion of Patients") 
+
+ang_p_disease.fig <- heart %>%
+   mutate(exang=ifelse(exang==0,"Not Present","Present")) %>%
+   group_by(exang) %>% 
+   summarise(p = sum(as.numeric(target))/length(target), .groups="drop") %>% 
+   ggplot(aes(exang,p)) +
+   geom_bar(stat="identity") +
+   geom_hline(yintercept=.464, size=1.0, color="red") +
+   annotate("text", x = 2.242, y = .486, label = "Mean = 0.464") +
+   ggtitle("Case Proportions by Angina") +
+   xlab("Exercise Induced Angina") +
+   ylab("Proportion of Cases")
+
+grid.arrange(ang_p_distribution.fig, ang_p_disease.fig, ncol=2) # Plot proportion distributions
+```
+*ST depression Factor*\  
+` `  
+` `  
+The next factor to consider is that of the ST depression on the ECG results that is induced by exercise relative to rest, also known as "oldpeak."  In the data, this value ranges from 0 to 6.2 with proportions ranging from a minimum of .330% for the value of 0.7 to a maximum of 32.7% for the value of 0.0.  The proportion of patients who were tested for heart disease is shown in the first figure below.\  
+` `  
+` `  
+Of the patients who tested positive for heart disease, the presence of heart disease results varied but probability for the disease generally decreased with increasing oldpeak values.   The proportion of patients diagnosed with heart disease is shown in the second figure below.\   
+```{r Analysis by Oldpeak, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+oldpeak_p_distribution.fig <- heart %>% 
+   group_by(oldpeak) %>%
+   summarise(p=length(oldpeak)/nrow(heart), .groups="drop") %>%
+   ggplot(aes(oldpeak, p)) +
+   geom_bar(stat="identity") +
+   ggtitle("Patient Proportions by ST") +
+   xlab("ST Depression Score") +
+   ylab("Proportion of Patients")  
+
+oldpeak_p_disease.fig <- heart %>%
+   group_by(oldpeak) %>% 
+   summarise(p = sum(as.numeric(target))/length(target), .groups="drop") %>% 
+   ggplot(aes(oldpeak,p)) +
+   geom_smooth(method='loess', formula='y ~ x') +
+   geom_point() +
+   geom_hline(yintercept=.393, size=1.0, color="red") +
+   annotate("text", x = 5.4, y = .447, label = "Mean = 0.393") +
+   ggtitle("Case Proportions by ST") +
+   xlab("ST Depression Score") +
+   ylab("Proportion of Cases")
+
+grid.arrange(oldpeak_p_distribution.fig, oldpeak_p_disease.fig, ncol=2) # Plot proportion distributions
+```
+` `  
+` `  
+*Slope Factor*\  
+` `  
+` `  
+The next factor to consider is that of the slope of the peak exercise ST segment, taken from the ECG results.  These results are categorized by values of "0", "1", and "2", where "0 indicated a decreasing or negative slope, "1" indicates a flat line, and "2" indicates an increasing or positive slope.  Of the patients who were tested, 6.93% showed a negative slope, 46.2% had a flat line, and 46.9% had a positive slope. The proportion of patients who were tested for heart disease is shown in the first figure below.\   
+` `  
+Of the patients who tested positive for heart disease, patients with a negative slope tested positive for the disease 42.9% of the time, patients with a zero slope or flat line tested positive 35% of the time, and patients with a positive slope tested positive 75.4% of the time.  The proportion of patients diagnosed with heart disease is shown in the second figure below.\   
+```{r Analysis by Slope, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+slope_p_distribution.fig <- heart %>% 
+   group_by(slope) %>%
+   summarise(p=length(slope)/nrow(heart), .groups="drop") %>%
+   ggplot(aes(slope, p)) +
+   geom_bar(stat="identity") +
+   ggtitle("Patient Proportions by Slope") +
+   xlab("Slope") +
+   ylab("Proportion of Patients")  
+
+slope_p_disease.fig <- heart %>%
+   group_by(slope) %>% 
+   summarise(p = sum(as.numeric(target))/length(target), .groups="drop") %>% 
+   ggplot(aes(slope,p)) +
+   geom_bar(stat="identity") +
+   geom_hline(yintercept=.5107, size=1.0, color="red") +
+   annotate("text", x = 0.00, y = .539, label = "Mean = .511") +
+   ggtitle("Case Proportions by Slope") +
+   xlab("Slope") +
+   ylab("Proportion of Cases")
+
+grid.arrange(slope_p_distribution.fig, slope_p_disease.fig, ncol=2) # Plot proportion distributions
+```
+*Visible Major Blood Vessels During Flourosopy*\  
+` `  
+` `  
+The next factor to consider is that of the number of major blood vessels shown during flourosopy.  These results range from 0 through 4 blood vessels visible.  Of the patients who were tested, 57.8% had 0 vessels visible, 21.5% had 1 vessel visible, 12.5% had 2 vessels visible, 6.6% had 3 vessels visible, and 16.5% had 4 vessels visible.  The proportion of patients who were tested for heart disease is shown in the first figure below.\   
+` `  
+Of the patients who tested positive for heart disease, those patients with 0 vessels visible had a 74.3% chance of having heart disease.  Those patients with 1 vessel visible had a 32.3% chance of having the disease.  Those patients with 3 vessels visible had a 15.0% chance of having the disease; and those patients with 4 vessels visible had an 80% chance of having the disease.  The proportion of patients diagnosed with heart disease is shown in the second figure below.\   
+```{r Analysis by CA, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+ca_p_distribution.fig <- heart %>% 
+   group_by(ca) %>%
+   summarise(p=length(oldpeak)/nrow(heart), .groups="drop") %>%
+   ggplot(aes(ca, p)) +
+   geom_bar(stat="identity") +
+   ggtitle("Patient Proportions by Flourosopy") +
+   xlab("Blood Vessels Colored by Flourosopy") +
+   ylab("Proportion of Patients")  
+
+ca_p_disease.fig <- heart %>%
+   group_by(ca) %>% 
+   summarise(p = sum(as.numeric(target))/length(target), .groups="drop") %>% 
+   ggplot(aes(ca,p)) +
+   geom_bar(stat="identity") +
+   geom_hline(yintercept=.44, size=1.0, color="red") +
+   annotate("text", x = 1.24, y = .465, label = "Mean = 0.44") +
+   ggtitle("Case Proportions by Flourosopy") +
+   xlab("Blood Vessels Colored by Flourosopy") +
+   ylab("Proportion of Cases")
+
+grid.arrange(ca_p_distribution.fig, ca_p_disease.fig, ncol=2) # Plot proportion distributions
+```
+*Thal Factor*\   
+` `  
+The final factor to consider is that of a blood flow disorder called "thalassemia."  These results range from 0 through 3.  Of these values, .660% of the patients returned a value of "0", 5.94%% of the patients had a value of "1", 54.8% of the patients had a value of "2", and 38.6% of the patients had a value of 38.6%. The proportion of patients who were tested for heart disease is shown in the first figure below.\   
+` `  
+Of the patients who tested positive for heart disease, those patients with a rating of "0" had a 50% chance of having heart disease, patients with a rating of "1" had a 38.3% chance of having the disease, patients with a rating of "2" had a 78.3% chance of having the disease, and patients with ratings of "3" had a 23.9% chance of having the disease.  The proportion of patients diagnosed with heart disease is shown in the second figure below.\  
+```{r Analysis by Thal, fig.align='center', fig.width=7, fig.height=3, echo=FALSE}
+thal_p_distribution.fig <- heart %>% 
+   group_by(thal) %>%
+   summarise(p=length(oldpeak)/nrow(heart), .groups="drop") %>%
+   ggplot(aes(thal, p)) +
+   geom_bar(stat="identity") +
+   ggtitle("Patient Proportions by Thalassemia") +
+   xlab("Thalassemia") +
+   ylab("Proportion of Patients")  
+
+thal_p_disease.fig <- heart %>%
+   group_by(thal) %>% 
+   summarise(p = sum(as.numeric(target))/length(target), .groups="drop") %>% 
+   ggplot(aes(thal,p)) +
+   geom_bar(stat="identity") +
+   geom_hline(yintercept=.464, size=1.0, color="red") +
+   annotate("text", x = 3.1, y = .494, label = "Mean=.464") +
+   ggtitle("Case Proportions by Thalassemia") +
+   xlab("Thalassemia") +
+   ylab("Proportion of Cases")
+
+grid.arrange(thal_p_distribution.fig, thal_p_disease.fig, ncol=2) # Plot proportion distributions
+```
+```{r Initialize Variables, include=FALSE}
+method <- c("lm", "glm", "loess", "knn", "rf", "ensemble")
+accuracy <- c(NA, NA, NA, NA, NA, NA)
+heart_models <- data.frame(method, accuracy)
+
+predictor <- c("age", "sex", "cp", "trestbps", "chol", "fbs", "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal")
+importance <- data.frame(predictor=predictor)
+```
+**RESULTS**\  
+` `  
+` `  
+The 13 factors, as described in the previous section are used to predict the presence of heart disease and regression models compared to determine the best fit.  These models include:\  
+` `  
+1.  Linear Regression (LN)` `\
+2.  Logistic Regression (GLM)` `\  
+` `  
+3.  Local Regression (Loess)` `\  
+` `  
+4.  K-Nearest Neighbors (KNN)` `\   
+5.  Random Forest (RF)` `\   
+6.  Ensemble` `\  
+` `  
+` `  
+*Linear Regression (LM)*` `\   
+` `  
+Utilizing linear regression provides promising results with the model returning 81.8% accuracy in diagnosing patients with heart disease and 95.0% accuracy in diagnosing patients without the disease for an overall accuracy of 90.3%\  
+` `  
+```{r Linear Regression, echo=FALSE}
+train_lm <- train(target~., method="lm", data=training)
+predict_lm <- round(predict(train_lm, newdata=testing))
+
+heart_models[1,2] <- confusionMatrix(as.factor(predict_lm), as.factor(testing$target))$overall[["Accuracy"]]
+heart_models[1,]
+```
+` `  
+The variables, utilized by this function are listed below in order of decreasing importance with the variable "ca" (i.e. the number of visible blood vessels) and "cp" (i.e. chest pain) taking prominent roles in the calculations.\  
+` `  
+```{r Linear Regression Variable Importance, echo=FALSE}
+imp_lm <- data.frame(predictor=row.names(varImp(train_lm)$importance), 
+          lm=varImp(train_lm)$importance$Overall) 
+
+importance <- right_join(importance,imp_lm, by="predictor")
+importance[,c(1,2)] %>% arrange(desc(lm))
+```
+` `  
+*Logistics Regression (GLM)*\  
+` `  
+` `  
+Utilizing logistics regression indicates similar results to that of the linear regression model, returning 81.8% accuracy in diagnosing patients with heart disease and a 95.0% accuracy in diagnosing patients without the disease for an overall accuracy of 90.3%. \    
+` `  
+```{r Logistics Regression Model, echo=FALSE}
+train_glm <- train(target~., method="glm", data=training)
+predict_glm <- round(predict(train_glm, newdata=testing))
+
+heart_models[2,2] <- confusionMatrix(as.factor(predict_glm), as.factor(testing$target))$overall[["Accuracy"]]
+heart_models[2,]
+```
+` `  
+The variables, utilized by this function are listed below in order of decreasing importance with "ca" (i.e. number of visible blood vessels) and "cp" (i.e. chest pain) taking prominent roles in the calculations.\  
+` `  
+```{r Logistics Regression Variable Importance, echo=FALSE}
+imp_glm <- data.frame(predictor=row.names(varImp(train_glm)$importance), 
+                     glm=varImp(train_glm)$importance$Overall) 
+
+importance <- right_join(importance,imp_glm, by="predictor")
+importance[,c(1,3)] %>% arrange(desc(glm))
+```
+` `  
+*Loess*
+` `  
+` `  
+Utilizing local regression returns a lower accuracy than that of linear and logistics regression models, returning 81.8% accuracy in diagnosing patients with heart disease and 81.8% accuracy in diagnosing patients without the disease for an overall accuracy of 87.1%. \  
+` `  
+```{r Loess Model, echo=FALSE}
+train_loess <- train(target~., method="gamLoess", data=training)
+predict_loess <- round(predict(train_loess, newdata=testing))
+
+heart_models[3,2] <- confusionMatrix(as.factor(predict_loess), as.factor(testing$target))$overall[["Accuracy"]]
+heart_models[3,]
+```
+` `  
+The variables, utilized by this function are listed below in order of decreasing importance with the variable "exang" (i.e. exercise angina) taking the prominent role in the calculations.\  
+` `  
+```{r Loess Variable Importance, echo=FALSE}
+imp_loess <- data.frame(predictor=row.names(varImp(train_loess)$importance), 
+                      loess=varImp(train_loess)$importance$Overall) 
+
+importance <- right_join(importance,imp_loess, by="predictor")
+importance[,c(1,4)] %>% arrange(desc(loess))
+```
+` `  
+*K Nearest Neighbors (KNN)*\  
+` `  
+` `  
+Utilizing the K-Nearest Neighbors Model with the best tuned "k" of 6 results a lower accuracy than that of linear regression, logistics regression, and local regression models, returning 81.8% accuracy in diagnosing patients with heart disease and 50.0% accuracy in diagnosing patients without the disease for an overall accuracy of 61.3%. \  
+` `  
+```{r KNN Best Tuned Model, echo=FALSE}
+train_knn <- train(target~., method="knn", data=training, tuneGrid = data.frame(k=seq(0:5)))
+predict_knn <- round(predict(train_knn, newdata=testing))
+
+heart_models[4,2] <- confusionMatrix(as.factor(predict_knn), as.factor(testing$target))$overall[["Accuracy"]]
+heart_models[4,]
+```
+
+The variables, utilized by this function are listed below in order of decreasing importance with the variables "exang" (i.e. exercise angina), "oldpeak" (i.e. ST depression induced by exercise), "cp" (i.e. chest pain), "thalach" (i.e. maximum heart rate achieved), and "ca" (i.e. number of visible blood vessels) taking prominent roles in the calculations.\  
+```{r KNN Variable Importance, echo=FALSE}
+imp_knn <- data.frame(predictor=row.names(varImp(train_knn)$importance), 
+                        knn=varImp(train_knn)$importance$Overall) 
+
+importance <- right_join(importance,imp_knn, by="predictor")
+importance[,c(1,5)] %>% arrange(desc(knn))
+```
+` `  
+*Random Forest (RF)*\  
+` `  
+` `  
+Utilizing the Random Forest Model with the best tuned "mtry" of 2 results in a similar accuracy compared to that of linear regression and logistics regression models, returning 90.9% accuracy in diagnosing patients with heart disease and 90.0% accuracy in diagnosing patients without the disease for an overall accuracy of 90.3%. \  
+` `  
+```{r Random Forest Model, echo=FALSE}
+train_rf <- train(target~., method="rf", data=training, tuneGrid = data.frame(mtry=c(1,2,4)))
+predict_rf <- round(predict(train_rf, newdata=testing))
+
+heart_models[5,2] <- confusionMatrix(as.factor(predict_rf), as.factor(testing$target))$overall[["Accuracy"]]
+heart_models[5,]
+```
+` `  
+The variables, utilized by this function are listed below in order of decreasing importance with the variables "cp" (i.e. chest pain), "thalach" (i.e. maximum heart rate achieved), "ca" (i.e. number of visible major blood vessels) and "oldpeak" (i.e. ST depression induced by exercise relative to rest) taking prominent roles in the calculations.\  
+` `  
+```{r Random Forest Variable Importance, echo=FALSE}
+imp_rf <- data.frame(predictor=row.names(varImp(train_rf)$importance), 
+                      rf=varImp(train_rf)$importance$Overall) 
+
+importance <- right_join(importance,imp_rf, by="predictor")
+importance[,c(1,6)] %>% arrange(desc(rf))
+```
+` `  
+*Ensemble*\  
+` `  
+` `  
+The final model is the ensemble model, utilizing the results of the most accurate models of linear regression, logistics regression, and random forest.  This model returns 81.8% accuracy in diagnosing patients with heart disease and 95.0% accuracy diagnosing patients without the disease disease for an overall accuracy of 90.3%. \  
+` ` 
+```{r Ensemble - Best Model Specificity and Sensitivity, echo=FALSE}
+predict_ensemble <- as.factor(round((as.numeric(predict_lm)+as.numeric(predict_glm)+as.numeric(predict_rf))/3))
+
+heart_models[6,2] <- confusionMatrix(as.factor(predict_ensemble), as.factor(testing$target))$overall[["Accuracy"]]
+heart_models[6,]
+```
+` ` 
+The variables, utilized by this function are listed below in order of decreasing importance with the variables "ca" (i.e. number of visible blood vessels) and "cp" (i.e. chest pain) taking prominent roles in the calculations.\  
+` ` 
+```{r Ensemble - Best Model Variable Importance, echo=FALSE}
+importance <- importance %>% mutate(ensemble=(lm+glm+rf)/3)
+importance[,c(1,7)] %>% arrange(desc(ensemble))
+```
+` `  
+**CONCLUSION**\  
+` `  
+` `  
+While a member of the medical field, through the analysis of present data on as few as 303 patient cases using 13 parameters, an overall accuracy of 90.3% is possible, resulting in early detection and saved lives.\  
+ ` `  
+` `   
+Additional studies are warranted as improvents in accuracy may be possible by increasing the number of relevant predictors (e.g. smoking habits, genetic predisposition).  Additionally, increasing the number of patient cases will help train the models and increase accuracy.\    
+` `  
+This form of analysis is not just limited to the medical profession and the use of parameters to make predictions may be utilized in any industry to make data informed decisions and understand the importance of the parameters driving the models and demonstrates the value of data science to an organization.\  
